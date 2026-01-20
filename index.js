@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// ---------------- FIREBASE ADMIN INIT ----------------
 const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
 const serviceAccount = JSON.parse(decodedKey);
 
@@ -22,12 +23,9 @@ admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
 });
 
-
-
-
+// ---------------- MONGODB INIT ----------------
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.j19qmx9.mongodb.net/?appName=Cluster0`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
     serverApi: {
         version: ServerApiVersion.v1,
@@ -36,11 +34,11 @@ const client = new MongoClient(uri, {
     }
 });
 
-async function run() {
-    try {
-        // Connect the client to the server	(optional starting in v4.7)
-        // await client.connect();
 
+async function startServer() {
+    try {
+        await client.connect();
+        console.log("✅ Connected to MongoDB");
 
         const db = client.db('parcelDB');
         const parcelsCollection = db.collection('parcels');
@@ -1066,22 +1064,25 @@ async function run() {
         });
 
 
+        app.listen(PORT, () => {
+            console.log(`🚀 Server is running on port ${PORT}`);
+        });
 
+        // Graceful shutdown handler
+        process.on("SIGINT", async () => {
+            console.log("Shutting down gracefully...");
+            await client.close();
+            process.exit(0);
+        });
 
-
-        // Send a ping to confirm a successful connection
-        // await client.db("admin").command({ ping: 1 });
-        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
-    } finally {
-        // Ensures that the client will close when you finish/error
-        // await client.close();
+    } catch (error) {
+        console.error("❌ Failed to start server:", error);
+        process.exit(1);
     }
 }
-run().catch(console.dir);
+
+// Start everything
+startServer();
 
 
-
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
 
