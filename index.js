@@ -22,6 +22,9 @@ app.use(cors({
     credentials: true,
 }));
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 /* ---------------- STRIPE ---------------- */
 const stripe = new Stripe(process.env.PAYMENT_GATEWAY_KEY);
 
@@ -158,7 +161,7 @@ async function run() {
             }
         });
         // GET role by email
-        app.get("/users/role", async (req, res) => {
+        app.get("/users/role",  async (req, res) => {
             const email = req.query.email;
 
             if (!email) {
@@ -178,7 +181,7 @@ async function run() {
         });
 
 
-        app.post('/users', async (req, res) => {
+        app.post('/users',  async (req, res) => {
             const email = req.body.email;
 
             const userExist = await usersCollection.findOne({ email });
@@ -195,7 +198,7 @@ async function run() {
         });
 
         // PATCH /users/:id/role
-        app.patch("/users/:id/role", async (req, res) => {
+        app.patch("/users/:id/role", verifyFBToken, async (req, res) => {
             const { id } = req.params;
             const { role } = req.body;
 
