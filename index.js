@@ -11,11 +11,16 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 /* ---------------- MIDDLEWARE ---------------- */
+const allowedOrigins = [
+    'http://localhost:5173',             // local dev
+    'https://zap-shift-22.netlify.app', // Netlify frontend
+    'https://zap-shift-bd-b5b33.web.app' // Firebase frontend
+];
+
 app.use(cors({
-    origin: ['http://localhost:5173'],
-    credentials: true
+    origin: allowedOrigins,
+    credentials: true,
 }));
-app.use(express.json());
 
 /* ---------------- STRIPE ---------------- */
 const stripe = new Stripe(process.env.PAYMENT_GATEWAY_KEY);
