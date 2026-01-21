@@ -3,25 +3,56 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const admin = require("firebase-admin");
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-const { default: Stripe } = require('stripe');
+const Stripe = require('stripe');
 
 dotenv.config();
 
-const stripe = new Stripe(process.env.PAYMENT_GATEWAY_KEY);
-
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
-app.use(cors());
+/* ---------------- MIDDLEWARE ---------------- */
+app.use(cors({
+    origin: ['http://localhost:5173'],
+    credentials: true
+}));
 app.use(express.json());
 
-// ---------------- FIREBASE ADMIN INIT ----------------
-const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
+/* ---------------- STRIPE ---------------- */
+const stripe = new Stripe(process.env.PAYMENT_GATEWAY_KEY);
+
+/* ---------------- FIREBASE ADMIN ---------------- */
+const decodedKey = Buffer
+    .from(process.env.FB_SERVICE_KEY, 'base64')
+    .toString('utf8');
+
 const serviceAccount = JSON.parse(decodedKey);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
 });
+
+const verifyFBToken = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).send({ massage: 'Unauthorized access' })
+    }
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+        return res.status(401).send({ massage: 'Unauthorized access' })
+    }
+
+    // verify the token
+
+    try {
+        const decoded = await admin.auth().verifyIdToken(token);
+        req.decoded = decoded;
+        next();
+    }
+    catch (error) {
+        return res.status(403).send({ massage: 'Forbidden access' })
+    }
+
+}
 
 // ---------------- MONGODB INIT ----------------
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.j19qmx9.mongodb.net/?appName=Cluster0`;
@@ -35,10 +66,11 @@ const client = new MongoClient(uri, {
 });
 
 
-async function startServer() {
+async function run() {
     try {
         await client.connect();
-        console.log("✅ Connected to MongoDB");
+        await client.db("admin").command({ ping: 1 });
+        console.log("✅ MongoDB connected");
 
         const db = client.db('parcelDB');
         const parcelsCollection = db.collection('parcels');
@@ -50,28 +82,6 @@ async function startServer() {
 
         // custom middlewares
 
-        const verifyFBToken = async (req, res, next) => {
-            const authHeader = req.headers.authorization;
-            if (!authHeader) {
-                return res.status(401).send({ massage: 'Unauthorized access' })
-            }
-            const token = authHeader.split(' ')[1];
-            if (!token) {
-                return res.status(401).send({ massage: 'Unauthorized access' })
-            }
-
-            // verify the token
-
-            try {
-                const decoded = await admin.auth().verifyIdToken(token);
-                req.decoded = decoded;
-                next();
-            }
-            catch (error) {
-                return res.status(403).send({ massage: 'Forbidden access' })
-            }
-
-        }
 
         const verifyAdmin = async (req, res, next) => {
             const email = req.decoded.email;
@@ -119,12 +129,6 @@ async function startServer() {
                 console.error("Notification error:", error);
             }
         };
-
-
-
-        app.get('/', (req, res) => {
-            res.send('Welcome to parcel world!');
-        });
 
         // GET /users/search?email=gmail
         app.get("/users/search", async (req, res) => {
@@ -1062,27 +1066,20 @@ async function startServer() {
                 res.status(500).json({ message: "Server error" });
             }
         });
-
-
-        app.listen(PORT, () => {
-            console.log(`🚀 Server is running on port ${PORT}`);
-        });
-
-        // Graceful shutdown handler
-        process.on("SIGINT", async () => {
-            console.log("Shutting down gracefully...");
-            await client.close();
-            process.exit(0);
-        });
-
-    } catch (error) {
-        console.error("❌ Failed to start server:", error);
-        process.exit(1);
+    }
+    finally {
+        // Ensures that the client will close when you finish/error
+        // await client.close();
     }
 }
+run().catch(console.dir);
 
-// Start everything
-startServer();
+app.get('/', (req, res) => {
+    res.send('zap is shifting shifting!')
+})
 
+app.listen(port, () => {
+    console.log(`Example app listening on port ${port}`)
+})
 
 
